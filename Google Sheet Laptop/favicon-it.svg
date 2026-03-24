@@ -1,15 +1,15 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
-  <rect width="128" height="128" fill="#000000"/>
-  <circle cx="64" cy="64" r="43" fill="none" stroke="#0a8d1f" stroke-width="8"/>
+  <rect width="128" height="128" fill="#efefef"/>
+  <circle cx="64" cy="64" r="43" fill="#ffffff" stroke="#007a14" stroke-width="8"/>
   <text
     x="64"
-    y="82"
+    y="80"
     text-anchor="middle"
     font-family="Arial, Helvetica, sans-serif"
     font-size="52"
     font-weight="700"
     letter-spacing="1"
-    fill="#0a8d1f"
+    fill="#007a14"
   >
     IT
   </text>
