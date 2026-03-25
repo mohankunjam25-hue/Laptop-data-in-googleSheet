@@ -4,9 +4,9 @@ This project contains a student laptop submission form that sends data to a Goog
 
 ## Files
 
-- `index.html`: Main form UI
-- `styles.css`: All styles extracted from `index.html`
-- `script.js`: All form logic extracted from `index.html`
+- `index.html`: React entry page + CDN scripts (`React`, `ReactDOM`, `Babel`)
+- `styles.css`: Full UI styling
+- `script.js`: React component + same form logic + student data
 
 ## Configure
 

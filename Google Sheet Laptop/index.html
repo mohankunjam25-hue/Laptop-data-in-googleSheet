@@ -1,5 +1,5 @@
 ﻿<!DOCTYPE html>
-<html lang="hi">
+<html lang="en">
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -12,90 +12,16 @@
         <link rel="stylesheet" href="styles.css">
     </head>
     <body>
-        <div class="card">
-            <div class="header">
-                <div class="header-tag">Laptop Submission</div>
-                <h1>Submit Laptop Form</h1>
-                <p class="subtitle">Start typing your name and the rest will be auto-filled.</p>
-            </div>
-
-            <!-- NAME INPUT -->
-            <div class="form-group">
-                <label for="nameInput">Student Name <span class="required-star">*</span></label>
-                <input type="text" id="nameInput"
-                    placeholder="Enter your name"
-                    autocomplete="off"
-                    oninput="onNameInput()"
-                    onblur="hideSuggestions()" />
-                <div class="suggestions" id="suggestions"></div>
-            </div>
-
-            <!-- CATEGORY PILL â€” auto show hoga -->
-            <div class="cat-pill-wrap">
-                <span class="cat-pill" id="catPill"></span>
-            </div>
-
-            <!-- EMAIL INPUT â€” auto fill + editable -->
-            <div class="form-group" id="emailGroup">
-                <label for="emailInput">Email ID <span class="required-star">*</span></label>
-                <div class="email-wrapper">
-                    <input type="email" id="emailInput"
-                        placeholder="Email auto fill hogi..."
-                        readonly />
-                    <button type="button" class="email-edit-btn show" id="editEmailBtn"
-                        onclick="toggleEmailEdit()">Edit</button>
-                </div>
-                <div class="email-note" id="emailNote">
-                    Email edit ki gayi hai manually check kar lena
-                </div>
-            </div>
-
-            <hr class="divider">
-
-            <!-- SUBMIT TYPE -->
-            <div class="form-group">
-                <label for="submitType">Why LPT Submit<span class="required-star">*</span></label>
-                <select id="submitType" title="Submit Type">
-                    <option value> Select</option>
-                    <option value="Other Leave">Home Leave</option>
-                    <option value="Home Leave">Campus Leave</option>
-                    <option value="Official Work">Official Work</option>
-                    <option value="Other">Other</option>
-                </select>
-            </div>
-
-            <!-- LPT SUBMISSION -->
-            <div class="form-group">
-                <label for="lptSubmission">Submit type<span
-                        class="required-star">*</span></label>
-                <select id="lptSubmission" title="Why LPT Submit">
-                    <option value>Select</option>
-                    <option value="Submitted">Submiting</option>
-                    <option value="Pending">Taking</option>
-                    <option value="Other">Other</option>
-                </select>
-            </div>
-
-            <!-- DATE -->
-            <div class="date-row">
-                <span class="date-text">Today's date (auto)</span>
-                <span class="date-value" id="todayDate"></span>
-            </div>
-
-            <button class="btn" id="submitBtn" onclick="submitForm()" disabled>
-                <span class="btn-inner">
-                    <span class="spinner" id="spinner"></span>
-                    <span id="btnText">First enter name</span>
-                </span>
-            </button>
-
-            <div class="toast" id="toast"></div>
-            <p class="required-note"><span>*</span> All fields must be filled in</p>
-        </div>
-
-        <script src="script.js"></script>
+        <div id="root"></div>
+        <script
+            src="https://unpkg.com/react@18/umd/react.production.min.js"
+            crossorigin></script>
+        <script
+            src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"
+            crossorigin></script>
+        <script
+            src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+        <script type="text/babel" data-presets="env,react"
+            src="script.js"></script>
     </body>
 </html>
-
-
-

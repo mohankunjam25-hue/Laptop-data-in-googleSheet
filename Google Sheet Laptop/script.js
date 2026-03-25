@@ -1,7 +1,5 @@
-﻿// ================================================================
-// STUDENT DATA — SIRF YAHAN EDIT KARO
-// Format: "Poora Naam": { email: "email@domain.com", category: "SOP" ya "SOB" }
-// ================================================================
+const { useEffect, useMemo, useRef, useState } = React;
+
 const STUDENT_DATA = {
   "Mohan Kunjam": { email: "mohankunjam25@navgurukul.org", category: "SOP" },
   "Pooja Rani": { email: "poojarani25@navgurukul.org", category: "SOP" },
@@ -139,270 +137,502 @@ const STUDENT_DATA = {
   "Deepak Thakur": { email: "deepakthakur25@navgurukul.org", category: "SOB" },
 };
 
-// ================================================================
-// GOOGLE APPS SCRIPT WEB APP URL — deploy karne ke baad daalo
-// ================================================================
-const SHEET_URL = "https://script.google.com/macros/s/AKfycbyNuVW79O6eFtNvFBPvrVT3XXWMFfxXqfxknq4ECtrno8uJ6Y8T8IhaeSmeQPbbJurmiA/exec";
-// ================================================================
+const SHEET_URL = "https://script.google.com/macros/s/AKfycbwxMFeQHRce-lT9Yv2X3DbWTu3NZdwwTarMwKLM5VhVWM9kg0HSwmH4W7AsUxsUucaLbg/exec";
+const THEME_STORAGE_KEY = 'lpt-form-theme';
 
-let matchedName    = "";
-let emailEdited    = false;
-
-// Aaj ki date set karo
-document.getElementById('todayDate').textContent = (() => {
+function formatDate() {
   const d = new Date();
-  return String(d.getDate()).padStart(2,'0') + '/' +
-         String(d.getMonth() + 1).padStart(2,'0') + '/' +
-         d.getFullYear();
-})();
-
-// ---- NAME INPUT ----
-function onNameInput() {
-  const val = document.getElementById('nameInput').value.trim();
-  const box  = document.getElementById('suggestions');
-
-  // Reset jab bhi type karo
-  matchedName = "";
-  resetEmailAndCategory();
-
-  if (val.length < 4) {
-    box.classList.remove('show');
-    document.getElementById('nameInput').classList.remove('no-match');
-    return;
-  }
-
-  const matches = Object.keys(STUDENT_DATA).filter(n =>
-    n.toLowerCase().includes(val.toLowerCase())
-  );
-
-  if (matches.length === 0) {
-    box.innerHTML = '<div class="no-result">Koi student nahi mila...</div>';
-    document.getElementById('nameInput').classList.add('no-match');
-    document.getElementById('nameInput').classList.remove('matched');
-    box.classList.add('show');
-    return;
-  }
-
-  box.innerHTML = matches.map(name => {
-    const cat = STUDENT_DATA[name].category;
-    return `<div class="suggestion-item" onmousedown="selectName('${name.replace(/'/g,"\\'")}')">
-      <span class="s-name">${name}</span>
-      <span class="s-badge ${cat === 'SOP' ? 'badge-sop' : 'badge-sob'}">${cat}</span>
-    </div>`;
-  }).join('');
-  document.getElementById('nameInput').classList.remove('no-match');
-  box.classList.add('show');
-}
-
-// Student select hone par
-function selectName(name) {
-  document.getElementById('nameInput').value = name;
-  document.getElementById('suggestions').classList.remove('show');
-  matchedName = name;
-
-  const s = STUDENT_DATA[name];
-
-  // Email auto fill — readonly mode
-  const emailInput = document.getElementById('emailInput');
-  emailInput.value    = s.email;
-  emailInput.readOnly = true;
-  emailInput.classList.remove('no-match');
-  emailInput.classList.add('matched');
-  emailEdited = false;
-
-  // Edit button reset
-  document.getElementById('editEmailBtn').textContent = 'Edit';
-  document.getElementById('emailNote').classList.remove('show');
-
-  // Email group show karo
-  document.getElementById('emailGroup').style.display = 'block';
-
-  // Category pill show karo
-  const pill = document.getElementById('catPill');
-  pill.textContent  = s.category === 'SOP' ? 'SOP Student' : 'SOB Student';
-  pill.className    = 'cat-pill show ' + (s.category === 'SOP' ? 'cat-sop' : 'cat-sob');
-
-  // Name field green
-  document.getElementById('nameInput').classList.add('matched');
-  document.getElementById('nameInput').classList.remove('no-match');
-
-  // Submit enable
-  document.getElementById('submitBtn').disabled = false;
-  document.getElementById('btnText').textContent = 'Sheet mein Submit Karo';
-}
-
-// Suggestions hide karo
-function hideSuggestions() {
-  setTimeout(() => {
-    document.getElementById('suggestions').classList.remove('show');
-    const val = document.getElementById('nameInput').value.trim();
-    if (!STUDENT_DATA[val] && matchedName === "") {
-      document.getElementById('nameInput').classList.remove('matched');
-      resetEmailAndCategory();
-    }
-  }, 150);
-}
-
-// ---- EMAIL EDIT ----
-function toggleEmailEdit() {
-  const emailInput = document.getElementById('emailInput');
-  const editBtn    = document.getElementById('editEmailBtn');
-  const note       = document.getElementById('emailNote');
-
-  if (emailInput.readOnly) {
-    // Edit mode on
-    emailInput.readOnly = false;
-    emailInput.focus();
-    emailInput.classList.remove('matched');
-    emailInput.classList.add('no-match'); // orange hint
-    editBtn.textContent = 'Lock';
-    note.classList.add('show');
-    emailEdited = true;
-  } else {
-    // Lock karo — validate basic email
-    const val = emailInput.value.trim();
-    if (!val.includes('@') || !val.includes('.')) {
-      emailInput.classList.add('no-match');
-      showToast('Sahi email format daalo (eg: name@domain.com)', 'error');
-      return;
-    }
-    emailInput.readOnly = true;
-    emailInput.classList.remove('no-match');
-    emailInput.classList.add('matched');
-    editBtn.textContent = 'Edit';
-  }
-}
-
-// ---- RESET ----
-function resetEmailAndCategory() {
-  document.getElementById('emailGroup').style.display  = 'none';
-  document.getElementById('emailInput').value          = '';
-  document.getElementById('emailInput').readOnly       = true;
-  document.getElementById('emailInput').classList.remove('matched', 'no-match');
-  document.getElementById('editEmailBtn').textContent  = 'Edit';
-  document.getElementById('emailNote').classList.remove('show');
-  document.getElementById('catPill').className         = 'cat-pill';
-  document.getElementById('submitBtn').disabled        = true;
-  document.getElementById('btnText').textContent       = 'Pehle naam likho';
-  emailEdited = false;
-}
-
-// ---- TOAST ----
-function showToast(msg, type) {
-  const t = document.getElementById('toast');
-  t.textContent     = msg;
-  t.className       = 'toast ' + type;
-  t.style.display   = 'block';
-  if (type === 'success') {
-    setTimeout(() => { t.style.display = 'none'; }, 4000);
-  }
+  return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
 }
 
 function parseSheetResponse(text) {
   if (!text || !text.trim()) {
     return { status: 'success' };
   }
+
   try {
     return JSON.parse(text);
-  } catch (err) {
+  } catch {
     return { status: 'success', message: text.trim() };
   }
 }
-// ---- SUBMIT ----
-async function submitForm() {
-  const submitType    = document.getElementById('submitType').value;
-  const lptSubmission = document.getElementById('lptSubmission').value;
-  const email         = document.getElementById('emailInput').value.trim();
 
-  if (!matchedName)   return showToast('List mein se naam select karo!', 'error');
-  if (!email)         return showToast('Email ID nahi hai!', 'error');
-  if (!submitType)    return showToast('Submit Type select karo!', 'error');
-  if (!lptSubmission) return showToast('LPT Submission select karo!', 'error');
+function App() {
+  const [theme, setTheme] = useState('dark');
+  const [nameInput, setNameInput] = useState('');
+  const [matchedName, setMatchedName] = useState('');
+  const [email, setEmail] = useState('');
+  const [emailReadOnly, setEmailReadOnly] = useState(true);
+  const [emailEdited, setEmailEdited] = useState(false);
+  const [submitType, setSubmitType] = useState('');
+  const [lptSubmission, setLptSubmission] = useState('');
+  const [suggestions, setSuggestions] = useState([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [toast, setToast] = useState({ message: '', type: '' });
+  const [submitting, setSubmitting] = useState(false);
 
-  // Agar email edit mode mein khuli hai toh pehle lock karo
-  if (!document.getElementById('emailInput').readOnly) {
-    showToast('Email edit ke baad "Lock" dabao pehle!', 'error');
-    return;
-  }
+  const hideSuggestionTimeoutRef = useRef(null);
+  const toastTimeoutRef = useRef(null);
 
-  const category = STUDENT_DATA[matchedName]?.category || '';
+  const todayDate = useMemo(() => formatDate(), []);
+  const category = matchedName ? STUDENT_DATA[matchedName]?.category || '' : '';
 
-  const btn     = document.getElementById('submitBtn');
-  const spinner = document.getElementById('spinner');
-  const btnText = document.getElementById('btnText');
+  useEffect(() => {
+    const savedTheme = localStorage.getItem(THEME_STORAGE_KEY);
+    const systemPrefersLight = window.matchMedia('(prefers-color-scheme: light)').matches;
+    const initialTheme = savedTheme === 'light' || savedTheme === 'dark'
+      ? savedTheme
+      : systemPrefersLight
+        ? 'light'
+        : 'dark';
 
-  btn.disabled          = true;
-  spinner.style.display = 'inline-block';
-  btnText.textContent   = 'Submit ho raha hai...';
+    setTheme(initialTheme);
+  }, []);
 
-  try {
-    const payload = {
-      name:          matchedName,
-      email:         email,
-      category:      category,
-      submitType:    submitType,
-      lptSubmission: lptSubmission,
-      date:          document.getElementById('todayDate').textContent
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+    localStorage.setItem(THEME_STORAGE_KEY, theme);
+  }, [theme]);
+
+  useEffect(() => {
+    const body = document.body;
+    if (!body || window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      return undefined;
+    }
+
+    const root = document.documentElement;
+    const maxShift = 42;
+    let rafId = null;
+    let pointerActive = false;
+    let targetX = window.innerWidth / 2;
+    let targetY = window.innerHeight / 2;
+    let currentX = targetX;
+    let currentY = targetY;
+
+    const applyTransforms = () => {
+      currentX += (targetX - currentX) * 0.12;
+      currentY += (targetY - currentY) * 0.12;
+
+      const xRatio = (currentX / window.innerWidth - 0.5) * 2;
+      const yRatio = (currentY / window.innerHeight - 0.5) * 2;
+      const moveX = xRatio * maxShift;
+      const moveY = yRatio * maxShift;
+
+      root.style.setProperty('--bg-move-x', `${moveX.toFixed(2)}px`);
+      root.style.setProperty('--bg-move-y', `${moveY.toFixed(2)}px`);
+      root.style.setProperty('--bg-move-x-a', `${(moveX * 0.35).toFixed(2)}px`);
+      root.style.setProperty('--bg-move-y-a', `${(moveY * 0.35).toFixed(2)}px`);
+      root.style.setProperty('--bg-move-x-b', `${(moveX * -0.28).toFixed(2)}px`);
+      root.style.setProperty('--bg-move-y-b', `${(moveY * -0.28).toFixed(2)}px`);
+      root.style.setProperty('--cursor-x', `${currentX.toFixed(2)}px`);
+      root.style.setProperty('--cursor-y', `${currentY.toFixed(2)}px`);
+
+      const moving = Math.abs(targetX - currentX) > 0.2 || Math.abs(targetY - currentY) > 0.2;
+      if (moving || pointerActive) {
+        rafId = requestAnimationFrame(applyTransforms);
+      } else {
+        rafId = null;
+      }
     };
 
-    // Query params + JSON body dono bhejte hain taki doPost handlers (e.parameter/e.postData) dono support ho.
+    const scheduleFrame = () => {
+      if (!rafId) {
+        rafId = requestAnimationFrame(applyTransforms);
+      }
+    };
+
+    const onPointerMove = (event) => {
+      if (event.pointerType && event.pointerType !== 'mouse') {
+        return;
+      }
+
+      pointerActive = true;
+      targetX = event.clientX;
+      targetY = event.clientY;
+      body.classList.add('bg-active');
+      scheduleFrame();
+    };
+
+    const resetMotion = () => {
+      pointerActive = false;
+      body.classList.remove('bg-active');
+      targetX = window.innerWidth / 2;
+      targetY = window.innerHeight / 2;
+      scheduleFrame();
+    };
+
+    body.addEventListener('pointermove', onPointerMove);
+    body.addEventListener('pointerenter', onPointerMove);
+    body.addEventListener('pointerleave', resetMotion);
+    window.addEventListener('blur', resetMotion);
+
+    return () => {
+      body.removeEventListener('pointermove', onPointerMove);
+      body.removeEventListener('pointerenter', onPointerMove);
+      body.removeEventListener('pointerleave', resetMotion);
+      window.removeEventListener('blur', resetMotion);
+      if (rafId) {
+        cancelAnimationFrame(rafId);
+      }
+      body.classList.remove('bg-active');
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!toast.message) {
+      return undefined;
+    }
+
+    if (toastTimeoutRef.current) {
+      clearTimeout(toastTimeoutRef.current);
+    }
+
+    const timeoutMs = toast.type === 'success' ? 4000 : 2600;
+    toastTimeoutRef.current = setTimeout(() => {
+      setToast({ message: '', type: '' });
+      toastTimeoutRef.current = null;
+    }, timeoutMs);
+
+    return () => {
+      if (toastTimeoutRef.current) {
+        clearTimeout(toastTimeoutRef.current);
+      }
+    };
+  }, [toast]);
+
+  useEffect(() => {
+    return () => {
+      if (hideSuggestionTimeoutRef.current) {
+        clearTimeout(hideSuggestionTimeoutRef.current);
+      }
+      if (toastTimeoutRef.current) {
+        clearTimeout(toastTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  const showToast = (message, type) => {
+    setToast({ message, type });
+  };
+
+  const resetEmailAndCategory = () => {
+    setEmail('');
+    setEmailReadOnly(true);
+    setEmailEdited(false);
+  };
+
+  const onNameInput = (value) => {
+    setNameInput(value);
+    setMatchedName('');
+    resetEmailAndCategory();
+
+    const trimmed = value.trim();
+    if (trimmed.length < 4) {
+      setShowSuggestions(false);
+      setSuggestions([]);
+      return;
+    }
+
+    const matches = Object.keys(STUDENT_DATA).filter((name) =>
+      name.toLowerCase().includes(trimmed.toLowerCase())
+    );
+
+    setSuggestions(matches);
+    setShowSuggestions(true);
+  };
+
+  const selectName = (name) => {
+    const student = STUDENT_DATA[name];
+    if (!student) {
+      return;
+    }
+
+    setNameInput(name);
+    setMatchedName(name);
+    setEmail(student.email);
+    setEmailReadOnly(true);
+    setEmailEdited(false);
+    setShowSuggestions(false);
+  };
+
+  const hideSuggestions = () => {
+    hideSuggestionTimeoutRef.current = setTimeout(() => {
+      setShowSuggestions(false);
+
+      if (!STUDENT_DATA[nameInput.trim()] && !matchedName) {
+        resetEmailAndCategory();
+      }
+    }, 150);
+  };
+
+  const toggleEmailEdit = () => {
+    if (emailReadOnly) {
+      setEmailReadOnly(false);
+      setEmailEdited(true);
+      return;
+    }
+
+    const val = email.trim();
+    if (!val.includes('@') || !val.includes('.')) {
+      showToast('Enter a valid email format (e.g. name@domain.com)', 'error');
+      return;
+    }
+
+    setEmailReadOnly(true);
+  };
+
+  const submitForm = async () => {
+    const trimmedEmail = email.trim();
+
+    if (!matchedName) {
+      showToast('Please select a name from the list!', 'error');
+      return;
+    }
+
+    if (!trimmedEmail) {
+      showToast('Email ID is required!', 'error');
+      return;
+    }
+
+    if (!submitType) {
+      showToast('Please select Submit Type!', 'error');
+      return;
+    }
+
+    if (!lptSubmission) {
+      showToast('Please select LPT Submission!', 'error');
+      return;
+    }
+
+    if (!emailReadOnly) {
+      showToast('After editing email, click "Lock" first!', 'error');
+      return;
+    }
+
+    const payload = {
+      name: matchedName,
+      email: trimmedEmail,
+      category: STUDENT_DATA[matchedName]?.category || '',
+      submitType,
+      lptSubmission,
+      date: todayDate,
+    };
+
     const query = new URLSearchParams(payload).toString();
     const requestUrl = SHEET_URL.includes('?') ? `${SHEET_URL}&${query}` : `${SHEET_URL}?${query}`;
 
-    let result;
-    let usedNoCorsFallback = false;
+    setSubmitting(true);
 
     try {
-      const response = await fetch(requestUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify(payload)
-      });
-      const text = await response.text();
-      result = parseSheetResponse(text);
-      if (!response.ok || result.status === 'error') {
-        throw new Error(result.message || 'Server error');
-      }
-    } catch (primaryErr) {
-      // Kuch browsers/file:// origins me CORS response read fail hota hai.
-      // no-cors fallback request ko fire karta hai; response read nahi hota.
-      usedNoCorsFallback = true;
-      await fetch(requestUrl, {
-        method: 'POST',
-        mode: 'no-cors',
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify(payload)
-      });
-      result = { status: 'success' };
-    }
+      let result;
+      let usedNoCorsFallback = false;
 
-    if (result.status === 'success') {
-      const snText = result.sn ? ` (S.N. ${result.sn})` : '';
-      const syncNote = usedNoCorsFallback ? ' Refresh the sheet after 2-3 seconds.' : '';
-      showToast('? ' + matchedName + ' Add request to data sheet has been done!' + snText + syncNote, 'success');
-      // Form reset
-      document.getElementById('nameInput').value   = '';
-      document.getElementById('submitType').value  = '';
-      document.getElementById('lptSubmission').value = '';
-      document.getElementById('nameInput').classList.remove('matched');
-      matchedName = "";
-      resetEmailAndCategory();
-    } else {
-      showToast('Error: ' + (result.message || 'Unknown error'), 'error');
+      try {
+        const response = await fetch(requestUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: JSON.stringify(payload),
+        });
+
+        const text = await response.text();
+        result = parseSheetResponse(text);
+
+        if (!response.ok || result.status === 'error') {
+          throw new Error(result.message || 'Server error');
+        }
+      } catch {
+        usedNoCorsFallback = true;
+        await fetch(requestUrl, {
+          method: 'POST',
+          mode: 'no-cors',
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: JSON.stringify(payload),
+        });
+        result = { status: 'success' };
+      }
+
+      if (result.status === 'success') {
+        const snText = result.sn ? ` (S.N. ${result.sn})` : '';
+        const syncNote = usedNoCorsFallback ? ' Refresh the sheet after 2-3 seconds.' : '';
+        showToast(`${matchedName} request added to sheet successfully!${snText}${syncNote}`, 'success');
+
+        setNameInput('');
+        setMatchedName('');
+        setSuggestions([]);
+        setShowSuggestions(false);
+        setSubmitType('');
+        setLptSubmission('');
+        resetEmailAndCategory();
+      } else {
+        showToast(`Error: ${result.message || 'Unknown error'}`, 'error');
+      }
+    } catch (err) {
+      console.error('Submit error:', err);
+      showToast('Submission failed', 'error');
+    } finally {
+      setSubmitting(false);
     }
-  } catch (err) {
-    console.error('Submit error:', err);
-    showToast('Submit fail', 'error');
-  } finally {
-    spinner.style.display = 'none';
-    if (matchedName) {
-      btnText.textContent = 'Submiting to sheet';
-      btn.disabled = false;
-    } else {
-      btnText.textContent = 'Write name first';
-      btn.disabled = true;
-    }
-  }
+  };
+
+  const nameInputClassName = [
+    matchedName ? 'matched' : '',
+    !matchedName && nameInput.trim().length >= 4 && showSuggestions && suggestions.length === 0 ? 'no-match' : '',
+  ]
+    .filter(Boolean)
+    .join(' ');
+
+  return (
+    <>
+      <div className="cursor-glow" aria-hidden="true" />
+
+      <div className="card">
+        <div className="header">
+          <div className="header-top">
+            <div className="header-tag">Laptop Submission</div>
+            <button
+              type="button"
+              className="theme-toggle"
+              onClick={() => setTheme((prev) => (prev === 'light' ? 'dark' : 'light'))}
+              aria-label={theme === 'light' ? 'Switch to dark mode' : 'Switch to light mode'}
+            >
+              <span>{theme === 'light' ? 'Dark mode' : 'Light mode'}</span>
+            </button>
+          </div>
+
+          <h1>Submit Laptop Form</h1>
+          <p className="subtitle">Start typing your name and the rest will be auto-filled.</p>
+        </div>
+
+        <div className="form-group">
+          <label htmlFor="nameInput">
+            Student Name <span className="required-star">*</span>
+          </label>
+          <input
+            id="nameInput"
+            type="text"
+            placeholder="Enter your name"
+            autoComplete="off"
+            value={nameInput}
+            onChange={(e) => onNameInput(e.target.value)}
+            onBlur={hideSuggestions}
+            onFocus={() => {
+              if (suggestions.length > 0 || nameInput.trim().length >= 4) {
+                setShowSuggestions(true);
+              }
+            }}
+            className={nameInputClassName}
+          />
+
+          <div className={`suggestions ${showSuggestions ? 'show' : ''}`}>
+            {suggestions.length === 0 ? (
+              <div className="no-result">No student found...</div>
+            ) : (
+              suggestions.map((name) => {
+                const cat = STUDENT_DATA[name].category;
+                const isSop = cat === 'SOP';
+                return (
+                  <div
+                    key={name}
+                    className="suggestion-item"
+                    onMouseDown={(event) => {
+                      event.preventDefault();
+                      selectName(name);
+                    }}
+                  >
+                    <span className="s-name">{name}</span>
+                    <span className={`s-badge ${isSop ? 'badge-sop' : 'badge-sob'}`}>{cat}</span>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </div>
+
+        <div className="cat-pill-wrap">
+          <span className={`cat-pill ${category ? `show ${category === 'SOP' ? 'cat-sop' : 'cat-sob'}` : ''}`}>
+            {category ? `${category} Student` : ''}
+          </span>
+        </div>
+
+        <div className="form-group" style={{ display: category ? 'block' : 'none' }}>
+          <label htmlFor="emailInput">
+            Email ID <span className="required-star">*</span>
+          </label>
+          <div className="email-wrapper">
+            <input
+              id="emailInput"
+              type="email"
+              placeholder="Email will auto-fill..."
+              value={email}
+              readOnly={emailReadOnly}
+              onChange={(e) => setEmail(e.target.value)}
+              className={`${matchedName && emailReadOnly ? 'matched' : ''} ${!emailReadOnly ? 'no-match' : ''}`.trim()}
+            />
+            <button type="button" className="email-edit-btn show" onClick={toggleEmailEdit}>
+              {emailReadOnly ? 'Edit' : 'Lock'}
+            </button>
+          </div>
+          <div className={`email-note ${emailEdited ? 'show' : ''}`}>
+            Email was edited manually. Please verify before submitting.
+          </div>
+        </div>
+
+        <hr className="divider" />
+
+        <div className="form-group">
+          <label htmlFor="submitType">
+            Why LPT Submitting<span className="required-star">*</span>
+          </label>
+          <select id="submitType" value={submitType} onChange={(e) => setSubmitType(e.target.value)}>
+            <option value="">Select</option>
+            <option value="Home Leave">Home Leave</option>
+            <option value="Campus Leave">Campus Leave</option>
+            <option value="Official Work">Official Work</option>
+            <option value="Other">Other</option>
+          </select>
+        </div>
+
+        <div className="form-group">
+          <label htmlFor="lptSubmission">
+            Submit type<span className="required-star">*</span>
+          </label>
+          <select id="lptSubmission" value={lptSubmission} onChange={(e) => setLptSubmission(e.target.value)}>
+            <option value="">Select</option>
+            <option value="Submitted">Submitting</option>
+            <option value="Taken">Taking</option>
+            <option value="Other">Other</option>
+          </select>
+        </div>
+
+        <div className="date-row">
+          <span className="date-text">Today's date (auto)</span>
+          <span className="date-value">{todayDate}</span>
+        </div>
+
+        <button className="btn" onClick={submitForm} disabled={!matchedName || submitting}>
+          <span className="btn-inner">
+            <span className="spinner" style={{ display: submitting ? 'inline-block' : 'none' }} />
+            <span>
+              {submitting
+                ? 'Submitting...'
+                : matchedName
+                  ? 'Submit to sheet'
+                  : 'Enter name first'}
+            </span>
+          </span>
+        </button>
+
+        <div className={`toast ${toast.message ? toast.type : ''}`} style={{ display: toast.message ? 'block' : 'none' }}>
+          {toast.message}
+        </div>
+
+        <p className="required-note">
+          <span>*</span> All fields must be filled in
+        </p>
+      </div>
+    </>
+  );
 }
 
-
+const root = ReactDOM.createRoot(document.getElementById('root'));
+root.render(<App />);
