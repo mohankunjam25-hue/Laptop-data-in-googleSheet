@@ -232,6 +232,7 @@ function getFormWindowStatus(date = new Date()) {
   if (activeWindow) {
     return {
       isOpen: true,
+      slotLabel: activeWindow.label,
       message: `Form is open now (${currentTime} IST). Active slot: ${activeWindow.label} IST.`,
     };
   }
@@ -242,6 +243,7 @@ function getFormWindowStatus(date = new Date()) {
 
   return {
     isOpen: false,
+    slotLabel: nextWindow.label,
     message: `Form is closed now (${currentTime} IST). Next slot: ${nextWindow.label} IST.`,
   };
 }
@@ -300,6 +302,12 @@ function App() {
   const todayDate = useMemo(() => formatDate(), []);
   const category = matchedName ? STUDENT_DATA[matchedName]?.category || '' : '';
   const isFormOpen = formWindow.isOpen;
+  const hoverBubbleText = isFormOpen ? 'Fill this form' : 'Time is close';
+  const hoverBubbleSlot = formWindow.slotLabel
+    ? isFormOpen
+      ? `Active slot: ${formWindow.slotLabel}`
+      : `Next slot: ${formWindow.slotLabel}`
+    : '';
 
   useEffect(() => {
     const savedTheme = localStorage.getItem(THEME_STORAGE_KEY);
@@ -633,6 +641,10 @@ function App() {
   return (
     <>
       <div className="cursor-glow" aria-hidden="true" />
+      <div className={`cursor-hover-bubble ${isFormOpen ? 'open' : 'closed'}`} aria-hidden="true">
+        <span className="bubble-text">{hoverBubbleText}</span>
+        <span className="bubble-slot">{hoverBubbleSlot}</span>
+      </div>
 
       <div className="form-layout">
         <div className="orbit-clock" aria-hidden="true">
