@@ -139,6 +139,39 @@ const STUDENT_DATA = {
 
 const SHEET_URL = "https://script.google.com/macros/s/AKfycbyJ65yFM-cT-EjS2I2yLWaknjhnNIPLwoMpGXf2lR6qFUkfeAd4l1AOhH3b-CmC02P94w/exec";
 const THEME_STORAGE_KEY = 'lpt-form-theme';
+const FORM_TIMEZONE = 'Asia/Kolkata';
+const ALLOWED_SUBMISSION_WINDOWS = [
+  { startMinutes: 9 * 60 + 30, endMinutes: 10 * 60 + 30, label: '09:30 AM - 10:30 AM' },
+  { startMinutes: 14 * 60 + 30, endMinutes: 15 * 60, label: '02:30 PM - 03:00 PM' },
+  { startMinutes: 18 * 60, endMinutes: 18 * 60 + 30, label: '06:00 PM - 06:30 PM' },
+  { startMinutes: 20 * 60, endMinutes: 22 * 60, label: '08:00 PM - 10:00 PM' },
+];
+const ALLOWED_WINDOW_TEXT = ALLOWED_SUBMISSION_WINDOWS.map((window) => window.label).join(' | ');
+const IST_TIME_PARTS_WITH_SECONDS_FORMATTER = new Intl.DateTimeFormat('en-GB', {
+  timeZone: FORM_TIMEZONE,
+  hour: '2-digit',
+  minute: '2-digit',
+  second: '2-digit',
+  hourCycle: 'h23',
+});
+const IST_CLOCK_FORMATTER = new Intl.DateTimeFormat('en-IN', {
+  timeZone: FORM_TIMEZONE,
+  hour: 'numeric',
+  minute: '2-digit',
+  hour12: true,
+});
+const IST_LIVE_CLOCK_FORMATTER = new Intl.DateTimeFormat('en-IN', {
+  timeZone: FORM_TIMEZONE,
+  hour: '2-digit',
+  minute: '2-digit',
+  second: '2-digit',
+  hour12: true,
+});
+const ALLOWED_SUBMISSION_WINDOWS_WITH_SECONDS = ALLOWED_SUBMISSION_WINDOWS.map((window) => ({
+  ...window,
+  startSeconds: window.startMinutes * 60,
+  endSeconds: window.endMinutes * 60 + 59,
+}));
 
 function formatDate() {
   const d = new Date();
@@ -147,14 +180,100 @@ function formatDate() {
 
 function parseSheetResponse(text) {
   if (!text || !text.trim()) {
-    return { status: 'success' };
+    return { status: 'error', message: 'Empty response from server.' };
   }
 
   try {
     return JSON.parse(text);
   } catch {
-    return { status: 'success', message: text.trim() };
+    return { status: 'error', message: text.trim() || 'Invalid response from server.' };
   }
+}
+
+function getIstClockParts(date = new Date()) {
+  const parts = IST_TIME_PARTS_WITH_SECONDS_FORMATTER.formatToParts(date);
+  const hour = Number(parts.find((part) => part.type === 'hour')?.value ?? 0);
+  const minute = Number(parts.find((part) => part.type === 'minute')?.value ?? 0);
+  const second = Number(parts.find((part) => part.type === 'second')?.value ?? 0);
+  return { hour, minute, second };
+}
+
+function getIstSeconds(date = new Date()) {
+  const { hour, minute, second } = getIstClockParts(date);
+  return hour * 3600 + minute * 60 + second;
+}
+
+function getAnalogClockAngles(date = new Date()) {
+  const { hour, minute, second } = getIstClockParts(date);
+  const hourIn12 = hour % 12;
+
+  return {
+    hourAngle: hourIn12 * 30 + minute * 0.5 + second / 120,
+    minuteAngle: minute * 6 + second * 0.1,
+    secondAngle: second * 6,
+  };
+}
+
+function formatCountdown(totalSeconds) {
+  const safeSeconds = Math.max(0, totalSeconds);
+  const hours = Math.floor(safeSeconds / 3600);
+  const minutes = Math.floor((safeSeconds % 3600) / 60);
+  const seconds = safeSeconds % 60;
+  return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+}
+
+function getFormWindowStatus(date = new Date()) {
+  const currentSeconds = getIstSeconds(date);
+  const currentTime = IST_CLOCK_FORMATTER.format(date).toUpperCase();
+  const activeWindow = ALLOWED_SUBMISSION_WINDOWS_WITH_SECONDS.find(
+    (window) => currentSeconds >= window.startSeconds && currentSeconds <= window.endSeconds
+  );
+
+  if (activeWindow) {
+    return {
+      isOpen: true,
+      message: `Form is open now (${currentTime} IST). Active slot: ${activeWindow.label} IST.`,
+    };
+  }
+
+  const nextWindow =
+    ALLOWED_SUBMISSION_WINDOWS_WITH_SECONDS.find((window) => currentSeconds < window.startSeconds) ||
+    ALLOWED_SUBMISSION_WINDOWS_WITH_SECONDS[0];
+
+  return {
+    isOpen: false,
+    message: `Form is closed now (${currentTime} IST). Next slot: ${nextWindow.label} IST.`,
+  };
+}
+
+function getSlotCountdownStatus(date = new Date()) {
+  const currentSeconds = getIstSeconds(date);
+  const activeWindow = ALLOWED_SUBMISSION_WINDOWS_WITH_SECONDS.find(
+    (window) => currentSeconds >= window.startSeconds && currentSeconds <= window.endSeconds
+  );
+
+  if (activeWindow) {
+    return {
+      title: 'Current Slot Ends In',
+      countdown: formatCountdown(activeWindow.endSeconds - currentSeconds),
+      meta: `Active slot: ${activeWindow.label} IST`,
+    };
+  }
+
+  const nextWindow =
+    ALLOWED_SUBMISSION_WINDOWS_WITH_SECONDS.find((window) => currentSeconds < window.startSeconds) ||
+    ALLOWED_SUBMISSION_WINDOWS_WITH_SECONDS[0];
+
+  const secondsToNextStart =
+    currentSeconds < nextWindow.startSeconds
+      ? nextWindow.startSeconds - currentSeconds
+      : 24 * 60 * 60 - currentSeconds + nextWindow.startSeconds;
+
+  return {
+    title: 'Next Slot Starts In',
+    countdown: formatCountdown(secondsToNextStart),
+    meta: `Next slot: ${nextWindow.label} IST`,
+  };
 }
 
 function App() {
@@ -170,12 +289,17 @@ function App() {
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [toast, setToast] = useState({ message: '', type: '' });
   const [submitting, setSubmitting] = useState(false);
+  const [formWindow, setFormWindow] = useState(() => getFormWindowStatus());
+  const [liveIstClock, setLiveIstClock] = useState(() => IST_LIVE_CLOCK_FORMATTER.format(new Date()).toUpperCase());
+  const [slotCountdown, setSlotCountdown] = useState(() => getSlotCountdownStatus());
+  const [analogClockAngles, setAnalogClockAngles] = useState(() => getAnalogClockAngles());
 
   const hideSuggestionTimeoutRef = useRef(null);
   const toastTimeoutRef = useRef(null);
 
   const todayDate = useMemo(() => formatDate(), []);
   const category = matchedName ? STUDENT_DATA[matchedName]?.category || '' : '';
+  const isFormOpen = formWindow.isOpen;
 
   useEffect(() => {
     const savedTheme = localStorage.getItem(THEME_STORAGE_KEY);
@@ -193,6 +317,23 @@ function App() {
     document.documentElement.setAttribute('data-theme', theme);
     localStorage.setItem(THEME_STORAGE_KEY, theme);
   }, [theme]);
+
+  useEffect(() => {
+    const tickClock = () => {
+      const now = new Date();
+      setLiveIstClock(IST_LIVE_CLOCK_FORMATTER.format(now).toUpperCase());
+      setFormWindow(getFormWindowStatus(now));
+      setSlotCountdown(getSlotCountdownStatus(now));
+      setAnalogClockAngles(getAnalogClockAngles(now));
+    };
+
+    tickClock();
+    const intervalId = setInterval(tickClock, 1000);
+
+    return () => {
+      clearInterval(intervalId);
+    };
+  }, []);
 
   useEffect(() => {
     const body = document.body;
@@ -397,7 +538,15 @@ function App() {
   };
 
   const submitForm = async () => {
-    const trimmedEmail = email.trim();
+    const latestWindowStatus = getFormWindowStatus();
+    setFormWindow(latestWindowStatus);
+
+    if (!latestWindowStatus.isOpen) {
+      showToast(latestWindowStatus.message, 'error');
+      return;
+    }
+
+    const trimmedEmail = email.trim().toLowerCase();
 
     if (!matchedName) {
       showToast('Please select a name from the list!', 'error');
@@ -433,43 +582,28 @@ function App() {
       date: todayDate,
     };
 
-    const query = new URLSearchParams(payload).toString();
-    const requestUrl = SHEET_URL.includes('?') ? `${SHEET_URL}&${query}` : `${SHEET_URL}?${query}`;
-
     setSubmitting(true);
 
     try {
-      let result;
-      let usedNoCorsFallback = false;
+      const response = await fetch(SHEET_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify(payload),
+      });
+      const text = await response.text();
+      const result = parseSheetResponse(text);
 
-      try {
-        const response = await fetch(requestUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-          body: JSON.stringify(payload),
-        });
+      if (!response.ok) {
+        throw new Error(result.message || `Server returned HTTP ${response.status}`);
+      }
 
-        const text = await response.text();
-        result = parseSheetResponse(text);
-
-        if (!response.ok || result.status === 'error') {
-          throw new Error(result.message || 'Server error');
-        }
-      } catch {
-        usedNoCorsFallback = true;
-        await fetch(requestUrl, {
-          method: 'POST',
-          mode: 'no-cors',
-          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-          body: JSON.stringify(payload),
-        });
-        result = { status: 'success' };
+      if (result.status !== 'success') {
+        throw new Error(result.message || 'Submission blocked by server.');
       }
 
       if (result.status === 'success') {
         const snText = result.sn ? ` (S.N. ${result.sn})` : '';
-        const syncNote = usedNoCorsFallback ? ' Refresh the sheet after 2-3 seconds.' : '';
-        showToast(`${matchedName} request added to sheet successfully!${snText}${syncNote}`, 'success');
+        showToast(`${matchedName} request added to sheet successfully!${snText}`, 'success');
 
         setNameInput('');
         setMatchedName('');
@@ -500,149 +634,204 @@ function App() {
     <>
       <div className="cursor-glow" aria-hidden="true" />
 
-      <div className="card">
-        <div className="header">
-          <div className="header-top">
-            <div className="header-tag">Laptop Submission</div>
-            <button
-              type="button"
-              className="theme-toggle"
-              onClick={() => setTheme((prev) => (prev === 'light' ? 'dark' : 'light'))}
-              aria-label={theme === 'light' ? 'Switch to dark mode' : 'Switch to light mode'}
-            >
-              <span>{theme === 'light' ? 'Dark mode' : 'Light mode'}</span>
-            </button>
-          </div>
-
-          <h1>Submit Laptop Form</h1>
-          <p className="subtitle">Start typing your name and the rest will be auto-filled.</p>
-        </div>
-
-        <div className="form-group">
-          <label htmlFor="nameInput">
-            Student Name <span className="required-star">*</span>
-          </label>
-          <input
-            id="nameInput"
-            type="text"
-            placeholder="Enter your name"
-            autoComplete="off"
-            value={nameInput}
-            onChange={(e) => onNameInput(e.target.value)}
-            onBlur={hideSuggestions}
-            onFocus={() => {
-              if (suggestions.length > 0 || nameInput.trim().length >= 4) {
-                setShowSuggestions(true);
-              }
-            }}
-            className={nameInputClassName}
-          />
-
-          <div className={`suggestions ${showSuggestions ? 'show' : ''}`}>
-            {suggestions.length === 0 ? (
-              <div className="no-result">No student found...</div>
-            ) : (
-              suggestions.map((name) => {
-                const cat = STUDENT_DATA[name].category;
-                const isSop = cat === 'SOP';
-                return (
-                  <div
-                    key={name}
-                    className="suggestion-item"
-                    onMouseDown={(event) => {
-                      event.preventDefault();
-                      selectName(name);
-                    }}
-                  >
-                    <span className="s-name">{name}</span>
-                    <span className={`s-badge ${isSop ? 'badge-sop' : 'badge-sob'}`}>{cat}</span>
-                  </div>
-                );
-              })
-            )}
-          </div>
-        </div>
-
-        <div className="cat-pill-wrap">
-          <span className={`cat-pill ${category ? `show ${category === 'SOP' ? 'cat-sop' : 'cat-sob'}` : ''}`}>
-            {category ? `${category} Student` : ''}
-          </span>
-        </div>
-
-        <div className="form-group" style={{ display: category ? 'block' : 'none' }}>
-          <label htmlFor="emailInput">
-            Email ID <span className="required-star">*</span>
-          </label>
-          <div className="email-wrapper">
-            <input
-              id="emailInput"
-              type="email"
-              placeholder="Email will auto-fill..."
-              value={email}
-              readOnly={emailReadOnly}
-              onChange={(e) => setEmail(e.target.value)}
-              className={`${matchedName && emailReadOnly ? 'matched' : ''} ${!emailReadOnly ? 'no-match' : ''}`.trim()}
+      <div className="form-layout">
+        <div className="orbit-clock" aria-hidden="true">
+          <div className="orbit-clock-face">
+            <div
+              className="orbit-clock-hand hand-hour"
+              style={{ transform: `translateX(-50%) rotate(${analogClockAngles.hourAngle}deg)` }}
             />
-            <button type="button" className="email-edit-btn show" onClick={toggleEmailEdit}>
-              {emailReadOnly ? 'Edit' : 'Lock'}
-            </button>
+            <div
+              className="orbit-clock-hand hand-minute"
+              style={{ transform: `translateX(-50%) rotate(${analogClockAngles.minuteAngle}deg)` }}
+            />
+            <div
+              className="orbit-clock-hand hand-second"
+              style={{ transform: `translateX(-50%) rotate(${analogClockAngles.secondAngle}deg)` }}
+            />
+            <div className="orbit-clock-center" />
           </div>
-          <div className={`email-note ${emailEdited ? 'show' : ''}`}>
-            Email was edited manually. Please verify before submitting.
+        </div>
+
+        <aside className="side-clock side-clock-left" aria-live="polite">
+          <p className="side-clock-label">IST LIVE TIME</p>
+          <p className="side-clock-time">{liveIstClock}</p>
+          <p className="side-clock-meta">{isFormOpen ? 'Form slot is open' : 'Form slot is closed'}</p>
+        </aside>
+
+        <div className="card">
+          <div className="header">
+            <div className="header-top">
+              <div className="header-tag">Laptop Submission</div>
+              <button
+                type="button"
+                className="theme-toggle"
+                onClick={() => setTheme((prev) => (prev === 'light' ? 'dark' : 'light'))}
+                aria-label={theme === 'light' ? 'Switch to dark mode' : 'Switch to light mode'}
+              >
+                <span>{theme === 'light' ? 'Dark mode' : 'Light mode'}</span>
+              </button>
+            </div>
+
+            <h1>Submit Laptop Form</h1>
+            <p className="subtitle">Start typing your name and the rest will be auto-filled.</p>
+            <div className={`time-window-status ${isFormOpen ? 'open' : 'closed'}`}>
+              {formWindow.message}
+            </div>
+            <p className="time-window-slots">Allowed slots (IST): {ALLOWED_WINDOW_TEXT}</p>
           </div>
-        </div>
 
-        <hr className="divider" />
+          <div className="form-group">
+            <label htmlFor="nameInput">
+              Student Name <span className="required-star">*</span>
+            </label>
+            <input
+              id="nameInput"
+              type="text"
+              placeholder="Enter your name"
+              autoComplete="off"
+              value={nameInput}
+              onChange={(e) => onNameInput(e.target.value)}
+              onBlur={hideSuggestions}
+              disabled={!isFormOpen || submitting}
+              onFocus={() => {
+                if (suggestions.length > 0 || nameInput.trim().length >= 4) {
+                  setShowSuggestions(true);
+                }
+              }}
+              className={nameInputClassName}
+            />
 
-        <div className="form-group">
-          <label htmlFor="submitType">
-            Why LPT Submitting<span className="required-star">*</span>
-          </label>
-          <select id="submitType" value={submitType} onChange={(e) => setSubmitType(e.target.value)}>
-            <option value="">Select</option>
-            <option value="Home Leave">Home Leave</option>
-            <option value="Campus Leave">Campus Leave</option>
-            <option value="Official Work">Official Work</option>
-            <option value="Other">Other</option>
-          </select>
-        </div>
+            <div className={`suggestions ${showSuggestions ? 'show' : ''}`}>
+              {suggestions.length === 0 ? (
+                <div className="no-result">No student found...</div>
+              ) : (
+                suggestions.map((name) => {
+                  const cat = STUDENT_DATA[name].category;
+                  const isSop = cat === 'SOP';
+                  return (
+                    <div
+                      key={name}
+                      className="suggestion-item"
+                      onMouseDown={(event) => {
+                        event.preventDefault();
+                        selectName(name);
+                      }}
+                    >
+                      <span className="s-name">{name}</span>
+                      <span className={`s-badge ${isSop ? 'badge-sop' : 'badge-sob'}`}>{cat}</span>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </div>
 
-        <div className="form-group">
-          <label htmlFor="lptSubmission">
-            Submit type<span className="required-star">*</span>
-          </label>
-          <select id="lptSubmission" value={lptSubmission} onChange={(e) => setLptSubmission(e.target.value)}>
-            <option value="">Select</option>
-            <option value="Submitted">Submiting</option>
-            <option value="Taken">Taking</option>
-          </select>
-        </div>
-
-        <div className="date-row">
-          <span className="date-text">Today's date (auto)</span>
-          <span className="date-value">{todayDate}</span>
-        </div>
-
-        <button className="btn" onClick={submitForm} disabled={!matchedName || submitting}>
-          <span className="btn-inner">
-            <span className="spinner" style={{ display: submitting ? 'inline-block' : 'none' }} />
-            <span>
-              {submitting
-                ? 'Submitting...'
-                : matchedName
-                  ? 'Submit to sheet'
-                  : 'Enter name first'}
+          <div className="cat-pill-wrap">
+            <span className={`cat-pill ${category ? `show ${category === 'SOP' ? 'cat-sop' : 'cat-sob'}` : ''}`}>
+              {category ? `${category} Student` : ''}
             </span>
-          </span>
-        </button>
+          </div>
 
-        <div className={`toast ${toast.message ? toast.type : ''}`} style={{ display: toast.message ? 'block' : 'none' }}>
-          {toast.message}
+          <div className="form-group" style={{ display: category ? 'block' : 'none' }}>
+            <label htmlFor="emailInput">
+              Email ID <span className="required-star">*</span>
+            </label>
+            <div className="email-wrapper">
+              <input
+                id="emailInput"
+                type="email"
+                placeholder="Email will auto-fill..."
+                value={email}
+                readOnly={emailReadOnly}
+                disabled={!isFormOpen || submitting || emailReadOnly}
+                onChange={(e) => setEmail(e.target.value)}
+                className={`${matchedName && emailReadOnly ? 'matched' : ''} ${!emailReadOnly ? 'no-match' : ''}`.trim()}
+              />
+              <button
+                type="button"
+                className="email-edit-btn show"
+                onClick={toggleEmailEdit}
+                disabled={!isFormOpen || submitting}
+              >
+                {emailReadOnly ? 'Edit' : 'Lock'}
+              </button>
+            </div>
+            <div className={`email-note ${emailEdited ? 'show' : ''}`}>
+              Email was edited manually. Please verify before submitting.
+            </div>
+          </div>
+
+          <hr className="divider" />
+
+          <div className="form-group">
+            <label htmlFor="submitType">
+              Why LPT Submitting<span className="required-star">*</span>
+            </label>
+            <select
+              id="submitType"
+              value={submitType}
+              onChange={(e) => setSubmitType(e.target.value)}
+              disabled={!isFormOpen || submitting}
+            >
+              <option value="">Select</option>
+              <option value="Home Leave">Home Leave</option>
+              <option value="Campus Leave">Campus Leave</option>
+              <option value="Official Work">Official Work</option>
+              <option value="Other">Other</option>
+            </select>
+          </div>
+
+          <div className="form-group">
+            <label htmlFor="lptSubmission">
+              Submit type<span className="required-star">*</span>
+            </label>
+            <select
+              id="lptSubmission"
+              value={lptSubmission}
+              onChange={(e) => setLptSubmission(e.target.value)}
+              disabled={!isFormOpen || submitting}
+            >
+              <option value="">Select</option>
+              <option value="Submitted">Submiting</option>
+              <option value="Taken">Taking</option>
+            </select>
+          </div>
+
+          <div className="date-row">
+            <span className="date-text">Today's date (auto)</span>
+            <span className="date-value">{todayDate}</span>
+          </div>
+
+          <button className="btn" onClick={submitForm} disabled={!matchedName || submitting || !isFormOpen}>
+            <span className="btn-inner">
+              <span className="spinner" style={{ display: submitting ? 'inline-block' : 'none' }} />
+              <span>
+                {submitting
+                  ? 'Submitting...'
+                  : !isFormOpen
+                    ? 'Form closed (time lock)'
+                    : matchedName
+                    ? 'Submit to sheet'
+                    : 'Enter name first'}
+              </span>
+            </span>
+          </button>
+
+          <div className={`toast ${toast.message ? toast.type : ''}`} style={{ display: toast.message ? 'block' : 'none' }}>
+            {toast.message}
+          </div>
+
+          <p className="required-note">
+            <span>*</span> All fields must be filled in
+          </p>
         </div>
 
-        <p className="required-note">
-          <span>*</span> All fields must be filled in
-        </p>
+        <aside className="side-clock side-clock-right" aria-live="polite">
+          <p className="side-clock-label">{slotCountdown.title}</p>
+          <p className="side-clock-time">{slotCountdown.countdown}</p>
+          <p className="side-clock-meta">{slotCountdown.meta}</p>
+        </aside>
       </div>
     </>
   );
