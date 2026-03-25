@@ -137,7 +137,7 @@ const STUDENT_DATA = {
   "Deepak Thakur": { email: "deepakthakur25@navgurukul.org", category: "SOB" },
 };
 
-const SHEET_URL = "https://script.google.com/macros/s/AKfycbwxMFeQHRce-lT9Yv2X3DbWTu3NZdwwTarMwKLM5VhVWM9kg0HSwmH4W7AsUxsUucaLbg/exec";
+const SHEET_URL = "https://script.google.com/macros/s/AKfycbyJ65yFM-cT-EjS2I2yLWaknjhnNIPLwoMpGXf2lR6qFUkfeAd4l1AOhH3b-CmC02P94w/exec";
 const THEME_STORAGE_KEY = 'lpt-form-theme';
 
 function formatDate() {
@@ -315,6 +315,21 @@ function App() {
     setToast({ message, type });
   };
 
+  const toFriendlyErrorMessage = (rawMessage) => {
+    const message = String(rawMessage || '').trim();
+    const lowerMessage = message.toLowerCase();
+
+    if (lowerMessage.includes('next action should be taken')) {
+      return 'You have allready submitted';
+    }
+
+    if (lowerMessage.includes('next action should be submitted')) {
+      return 'You have taken';
+    }
+
+    return message || 'Submission failed';
+  };
+
   const resetEmailAndCategory = () => {
     setEmail('');
     setEmailReadOnly(true);
@@ -464,11 +479,11 @@ function App() {
         setLptSubmission('');
         resetEmailAndCategory();
       } else {
-        showToast(`Error: ${result.message || 'Unknown error'}`, 'error');
+        showToast(`Error: ${toFriendlyErrorMessage(result.message || 'Unknown error')}`, 'error');
       }
     } catch (err) {
       console.error('Submit error:', err);
-      showToast('Submission failed', 'error');
+      showToast(`Error: ${toFriendlyErrorMessage(err?.message || 'Submission failed')}`, 'error');
     } finally {
       setSubmitting(false);
     }
@@ -598,9 +613,8 @@ function App() {
           </label>
           <select id="lptSubmission" value={lptSubmission} onChange={(e) => setLptSubmission(e.target.value)}>
             <option value="">Select</option>
-            <option value="Submitted">Submitting</option>
+            <option value="Submitted">Submiting</option>
             <option value="Taken">Taking</option>
-            <option value="Other">Other</option>
           </select>
         </div>
 
